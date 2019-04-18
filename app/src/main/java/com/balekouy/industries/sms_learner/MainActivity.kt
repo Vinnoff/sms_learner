@@ -23,6 +23,8 @@ class MainActivity : AppCompatActivity() {
             setButtons()
         }
 
+    private lateinit var correctWord: ArrayList<DataZero>;
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -61,11 +63,72 @@ class MainActivity : AppCompatActivity() {
                 val beforeLastWord: String? = words.getOrNull(words.size - 2)
                 hints = getTopHint(beforeLastWord?.toLowerCase(), lastWord.toLowerCase())
             } else {
-                //TODO distance du linchteinchtain
+                val word = text.substring(0, text.lastIndex).split(" ").last()
+                hints = getMostProbleMaybeIDontKnowWordButIAmNotVerySureAboutThat(word)
             }
         } else {
             hints = getTopHint(lastWord = ".")
         }
+    }
+
+    private fun getMostProbleMaybeIDontKnowWordButIAmNotVerySureAboutThat(word: String): List<String> {
+        var arr = listOf(mutableMapOf("value" to "", "level" to 100),mutableMapOf("value" to "", "level" to 100),mutableMapOf("value" to "", "level" to 100))
+
+        fun rearangeCollection(word: String, level: Int) {
+            var temp = mutableMapOf("value" to "", "level" to 100)
+
+            arr.forEach {
+                if (temp["level"] == 100) {
+                    if (it["level"] as Int > level) {
+                        temp["level"] = it["level"] as String
+                        temp["value"] = it["value"] as Int
+                        it["level"] = level
+                        it["value"] = word
+                    }
+                } else {
+                    if (it["level"] as Int > level) {
+                        it["level"] = temp["level"] as Int
+                        it["value"] = temp["value"] as String
+                    }
+                }
+            }
+        }
+
+        correctWord.forEach {
+            var levenvalue = levenshtein(it.word1, word)
+            rearangeCollection(it.word1, levenvalue)
+        }
+
+        return arr.map { it["value"].toString() }
+    }
+
+
+    private fun levenshtein(lhs : CharSequence, rhs : CharSequence) : Int {
+        val lhsLength = lhs.length
+        val rhsLength = rhs.length
+
+        var cost = IntArray(lhsLength + 1) { it }
+        var newCost = IntArray(lhsLength + 1) { 0 }
+
+        for (i in 1..rhsLength) {
+            newCost[0] = i
+
+            for (j in 1..lhsLength) {
+                val editCost= if(lhs[j - 1] == rhs[i - 1]) 0 else 1
+
+                val costReplace = cost[j - 1] + editCost
+                val costInsert = cost[j] + 1
+                val costDelete = newCost[j - 1] + 1
+
+                newCost[j] = minOf(costInsert, costDelete, costReplace)
+            }
+
+            val swap = cost
+            cost = newCost
+            newCost = swap
+        }
+
+        return cost[lhsLength]
     }
 
     private fun getTopHint(beforeLastWord: String? = null, lastWord: String? = null): List<String> {
@@ -130,12 +193,53 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun readCSVFirstTime() {
-        //read(resources.openRawResource(R.raw.gram0))
-        //read(resources.openRawResource(R.raw.gram1))
-        read(resources.openRawResource(R.raw.gram2))
+        read0(resources.openRawResource(R.raw.gram0))
+        //read2(resources.openRawResource(R.raw.gram1))
+        read2(resources.openRawResource(R.raw.gram2))
     }
 
-    fun read(resourceFile: InputStream) {
+    fun read0(resourceFile: InputStream) {
+        var fileReader: BufferedReader? = null
+        try {
+            var line: String?
+
+            fileReader = BufferedReader(InputStreamReader(resourceFile))
+
+            // Read CSV header
+            fileReader.readLine()
+
+            // Read the file line by line starting from the second line
+            line = fileReader.readLine()
+            while (line != null) {
+                val tokens = line.split(";")
+                if (tokens.isNotEmpty()) {
+                    val data = DataZero(
+                        null,
+                        tokens[0],
+                        Integer.parseInt(tokens[1])
+                    )
+                    val task = Runnable { mDB?.dataDao()?.insert(data) }
+                    mDbWorkerThread.postTask(task)
+                }
+                line = fileReader.readLine()
+            }
+
+            correctWord?.addAll(mDB?.dataDao()?.getMVP()!!)
+
+        } catch (e: Exception) {
+            Log.e("File error", "Reading CSV Error!")
+            e.printStackTrace()
+        } finally {
+            try {
+                fileReader?.close()
+            } catch (e: IOException) {
+                Log.e("File error", "Closing fileReader Error!")
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun read2(resourceFile: InputStream) {
         var fileReader: BufferedReader? = null
         try {
             var line: String?

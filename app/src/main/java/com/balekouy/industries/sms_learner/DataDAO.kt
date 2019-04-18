@@ -21,4 +21,10 @@ interface DataDAO {
 
     @Query("SELECT * FROM data order by `index` asc limit 3")
     fun getHint(): List<Data>
+
+    @Insert(onConflict = REPLACE)
+    fun insert(data0: DataZero)
+
+    @Query("SELECT * FROM data0 order by `count` desc limit 1000")
+    fun getMVP(): List<DataZero>
 }
