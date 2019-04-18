@@ -25,6 +25,9 @@ interface DataDAO {
     @Insert(onConflict = REPLACE)
     fun insert(data0: DataZero)
 
-    @Query("SELECT * FROM data0 order by `count` desc limit 1000")
+    @Query("SELECT * FROM data0 order by `count` desc")
     fun getMVP(): List<DataZero>
+
+    @Query("SELECT * FROM data0 WHERE word1 LIKE :word order by `count` desc limit 3" )
+    fun getWord(word: String): List<DataZero>
 }

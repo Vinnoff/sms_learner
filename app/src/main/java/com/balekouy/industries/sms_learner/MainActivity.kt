@@ -23,7 +23,12 @@ class MainActivity : AppCompatActivity() {
             setButtons()
         }
 
-    private lateinit var correctWord: ArrayList<DataZero>;
+    private var correctWords = ArrayList<String>()
+    private var correctWord = listOf("", "", "")
+            set(value) {
+                field = value
+                setButtons()
+            }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,40 +68,41 @@ class MainActivity : AppCompatActivity() {
                 val beforeLastWord: String? = words.getOrNull(words.size - 2)
                 hints = getTopHint(beforeLastWord?.toLowerCase(), lastWord.toLowerCase())
             } else {
-                val word = text.substring(0, text.lastIndex).split(" ").last()
-                hints = getMostProbleMaybeIDontKnowWordButIAmNotVerySureAboutThat(word)
+                val word = text.substring(0, text.lastIndex+1).split(" ").last()
+                val task = Runnable {val worddb=mDB?.dataDao()?.getWord("$word%");hints=if(!worddb.isNullOrEmpty()){worddb.map{v->v.word1}}else{getNearestWord(word)};}
+                mDbWorkerThread.postTask(task)
             }
         } else {
             hints = getTopHint(lastWord = ".")
         }
     }
 
-    private fun getMostProbleMaybeIDontKnowWordButIAmNotVerySureAboutThat(word: String): List<String> {
+    private fun getNearestWord(word: String): List<String> {
         var arr = listOf(mutableMapOf("value" to "", "level" to 100),mutableMapOf("value" to "", "level" to 100),mutableMapOf("value" to "", "level" to 100))
 
         fun rearangeCollection(word: String, level: Int) {
             var temp = mutableMapOf("value" to "", "level" to 100)
 
+
             arr.forEach {
                 if (temp["level"] == 100) {
-                    if (it["level"] as Int > level) {
-                        temp["level"] = it["level"] as String
-                        temp["value"] = it["value"] as Int
+                    if (it["level"] as Int >= level) {
+                        temp["level"] = it["level"] as Int
+                        temp["value"] = it["value"] as String
                         it["level"] = level
                         it["value"] = word
                     }
                 } else {
-                    if (it["level"] as Int > level) {
-                        it["level"] = temp["level"] as Int
-                        it["value"] = temp["value"] as String
-                    }
+                    var temptemp = mapOf("value" to temp["value"], "level" to temp["level"])
+                    it["level"] = temp["level"] as Int
+                    it["value"] = temp["value"] as String
+                    temp["level"] = temptemp["level"] as Int
+                    temp["value"] = temptemp["value"] as String
                 }
             }
         }
-
-        correctWord.forEach {
-            var levenvalue = levenshtein(it.word1, word)
-            rearangeCollection(it.word1, levenvalue)
+        correctWords.forEach {
+            rearangeCollection(it, levenshtein(word, it))
         }
 
         return arr.map { it["value"].toString() }
@@ -107,20 +113,20 @@ class MainActivity : AppCompatActivity() {
         val lhsLength = lhs.length
         val rhsLength = rhs.length
 
-        var cost = IntArray(lhsLength + 1) { it }
-        var newCost = IntArray(lhsLength + 1) { 0 }
+        var cost = Array(lhsLength) { it }
+        var newCost = Array(lhsLength) { 0 }
 
-        for (i in 1..rhsLength) {
+        for (i in 1 until rhsLength) {
             newCost[0] = i
 
-            for (j in 1..lhsLength) {
-                val editCost= if(lhs[j - 1] == rhs[i - 1]) 0 else 1
+            for (j in 1 until lhsLength) {
+                val match = if(lhs[j - 1] == rhs[i - 1]) 0 else 1
 
-                val costReplace = cost[j - 1] + editCost
+                val costReplace = cost[j - 1] + match
                 val costInsert = cost[j] + 1
                 val costDelete = newCost[j - 1] + 1
 
-                newCost[j] = minOf(costInsert, costDelete, costReplace)
+                newCost[j] = Math.min(Math.min(costInsert, costDelete), costReplace)
             }
 
             val swap = cost
@@ -128,7 +134,7 @@ class MainActivity : AppCompatActivity() {
             newCost = swap
         }
 
-        return cost[lhsLength]
+        return cost[lhsLength - 1]
     }
 
     private fun getTopHint(beforeLastWord: String? = null, lastWord: String? = null): List<String> {
@@ -157,8 +163,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun setButtons() {
         word_1.text = hints[0]
-        word_2.text = hints[1]
-        word_3.text = hints[2]
+        word_2.text = if (hints.size > 1) hints[1] else ""
+        word_3.text = if (hints.size > 2) hints[2] else ""
     }
 
     fun clickedOnWord1() {
@@ -189,13 +195,19 @@ class MainActivity : AppCompatActivity() {
         mDbWorkerThread.start()
         mDB = AppDatabase.getDatabase(this)
         readCSVFirstTime()
+        initCorrectionSet()
         initUI()
     }
 
+    private fun initCorrectionSet() {
+        val task = Runnable { correctWords?.addAll(mDB?.dataDao()?.getMVP()?.map{ v -> v.word1 }.orEmpty()) }
+        mDbWorkerThread.postTask(task)
+    }
+
     private fun readCSVFirstTime() {
-        read0(resources.openRawResource(R.raw.gram0))
+        //read0(resources.openRawResource(R.raw.gram0))
         //read2(resources.openRawResource(R.raw.gram1))
-        read2(resources.openRawResource(R.raw.gram2))
+        //read2(resources.openRawResource(R.raw.gram2))
     }
 
     fun read0(resourceFile: InputStream) {
@@ -212,6 +224,7 @@ class MainActivity : AppCompatActivity() {
             line = fileReader.readLine()
             while (line != null) {
                 val tokens = line.split(";")
+                Log.i("ElTAg2", tokens.toString())
                 if (tokens.isNotEmpty()) {
                     val data = DataZero(
                         null,
@@ -223,8 +236,6 @@ class MainActivity : AppCompatActivity() {
                 }
                 line = fileReader.readLine()
             }
-
-            correctWord?.addAll(mDB?.dataDao()?.getMVP()!!)
 
         } catch (e: Exception) {
             Log.e("File error", "Reading CSV Error!")
