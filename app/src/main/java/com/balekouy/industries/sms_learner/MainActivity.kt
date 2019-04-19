@@ -6,7 +6,9 @@ import android.support.v7.app.AppCompatActivity
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
+import android.view.View
 import android.widget.Button
+import com.balekouy.industries.sms_learner.AppDatabase.Companion.databaseExist
 import kotlinx.android.synthetic.main.activity_main.*
 import java.io.BufferedReader
 import java.io.IOException
@@ -20,7 +22,7 @@ class MainActivity : AppCompatActivity() {
     private val mDbWorkerThread = DbWorkerThread("dbWorkerThread")
     private var mUIHandler = Handler()
     private val hashmap = HashMap<String, Float>()
-    private var hints = listOf("", "", "")
+    private var hints = listOf("","","")
         set(value) {
             field = value
             setButtons()
@@ -31,14 +33,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        runOnUiThread { setContentView(R.layout.activity_main) }
         initProgram()
     }
 
     private fun initUI() {
-        val task = Runnable { hints = getTopHint(lastWord = ".") }
-        mDbWorkerThread.postTask(task)
-
         user_input.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(text: Editable?) {
                 val task = Runnable { handleNewLetter(text.toString()) }
@@ -73,14 +72,14 @@ class MainActivity : AppCompatActivity() {
                 if (hints[0] == "")
                     hints = getTopHint()
             } else {
-                val word = text.substring(0, text.lastIndex+1).split(" ").last()
+                val word = text.substring(0, text.lastIndex + 1).split(" ").last()
                 val task = Runnable {
-                    val worddb=mDB?.dataDao()?.getWord("$word%")
-                    hints=
-                        if(!worddb.isNullOrEmpty()) {
+                    val worddb = mDB?.dataDao()?.getWord("$word%")
+                    hints =
+                        if (!worddb.isNullOrEmpty()) {
                             context = COMPLETION
-                            worddb.map{v->v.word1}
-                        } else{
+                            worddb.map { v -> v.word1 }
+                        } else {
                             context = CORRECTION
                             getNearestWord(word)
                         }
@@ -97,10 +96,10 @@ class MainActivity : AppCompatActivity() {
         val emotion = calculateEmotion(text)
         val format = String.format("%.2f", emotion)
         when {
-            emotion < -0.8 -> emotion_tv.text = "🤬 $format"
-            emotion > 0.8 -> emotion_tv.text = "😊 $format"
-            emotion < -0.4 -> emotion_tv.text = "😡 $format"
-            emotion > 0.4 -> emotion_tv.text = "🙂 $format"
+            emotion < -0.5 -> emotion_tv.text = "🤬 $format"
+            emotion > 0.5 -> emotion_tv.text = "😊 $format"
+            emotion < -0.2 -> emotion_tv.text = "😡 $format"
+            emotion > 0.2 -> emotion_tv.text = "🙂 $format"
             else -> emotion_tv.text = "😐 $format"
         }
     }
@@ -225,22 +224,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateText(but: Button) {
+        val text :String = user_input.text.toString()
+
         if (but.text.isNotEmpty()) {
-            val newText:String
+            val newText: String
             Log.i("TABC", context)
             newText =
                 if (context == PROPOSITION)
                     "${user_input.text}${but.text} "
                 else {
                     var sent = user_input.text.split(" ")
-                    Log.i("TAB1",sent.toString())
+                    Log.i("TAB1", sent.toString())
                     sent = sent.dropLast(1)
-                    Log.i("TAB2",sent.toString())
+                    Log.i("TAB2", sent.toString())
                     "${sent.joinToString(separator = " ")}${if (sent.isNotEmpty()) " " else ""}${but.text} "
                 }
-            Log.i("TAB",newText)
+            Log.i("TAB", newText)
 
             user_input.setText(newText)
+
+            user_input.setSelection(user_input.text.length)
         }
     }
 
@@ -248,7 +251,7 @@ class MainActivity : AppCompatActivity() {
     private fun initProgram() {
         mDbWorkerThread.start()
         mDB = AppDatabase.getDatabase(this)
-        readCSVFirstTime()
+        if (!databaseExist(applicationContext)) readCSVFirstTime()
         initEmotionSet()
         initCorrectionSet()
         initUI()
@@ -268,7 +271,6 @@ class MainActivity : AppCompatActivity() {
             line = fileReader.readLine()
             while (line != null) {
                 val tokens = line.split(",")
-                Log.i("EMOTION_WORD", tokens.toString())
                 if (tokens.isNotEmpty()) {
                     hashmap[tokens[0]] = tokens[1].toFloat()
                 }
@@ -294,9 +296,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun readCSVFirstTime() {
-        //read0(resources.openRawResource(R.raw.gram0))
-        //read1(resources.openRawResource(R.raw.gram1))
-        //read2(resources.openRawResource(R.raw.gram2))
+        read0(resources.openRawResource(R.raw.gram0))
+        read1(resources.openRawResource(R.raw.gram1))
+        read2(resources.openRawResource(R.raw.gram2))
     }
 
     private fun read0(resourceFile: InputStream) {
