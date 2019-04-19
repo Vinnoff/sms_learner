@@ -12,12 +12,14 @@ import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStream
 import java.io.InputStreamReader
+import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
     private var mDB: AppDatabase? = null
-    private lateinit var mDbWorkerThread: DbWorkerThread
+    private val mDbWorkerThread = DbWorkerThread("dbWorkerThread")
     private var mUIHandler = Handler()
+    private val hashmap = HashMap<String, Float>()
     private var hints = listOf("", "", "")
         set(value) {
             field = value
@@ -56,8 +58,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleNewLetter(text: String) {
-        val lenghtText = text.length
+        setEmotion(text)
 
+        val lenghtText = text.length
         if (lenghtText > 0) {
             if (text.last().isWhitespace()) {
                 val words = text.substring(0, text.lastIndex).split(" ")
@@ -86,8 +89,38 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun setEmotion(text: String) {
+        val emotion = calculateEmotion(text)
+        val format = String.format("%.2f", emotion)
+        when {
+            emotion < -0.8 -> emotion_tv.text = "🤬 $format"
+            emotion > 0.8 -> emotion_tv.text = "😊 $format"
+            emotion < -0.4 -> emotion_tv.text = "😡 $format"
+            emotion > 0.4 -> emotion_tv.text = "🙂 $format"
+            else -> emotion_tv.text = "😐 $format"
+        }
+    }
+
+    private fun calculateEmotion(text: String): Float {
+        var emotionCounter = 0F
+        val list = text.split(" ").filter { it != "" }
+        list.forEach {
+            val text = it.replace(".", "")
+            emotionCounter += getEmotion(text)
+        }
+        return emotionCounter / list.size
+    }
+
+    private fun getEmotion(word: String): Float {
+        return hashmap[word.toLowerCase()] ?: 0F
+    }
+
     private fun getNearestWord(word: String): List<String> {
-        var arr = listOf(mutableMapOf("value" to "", "level" to 100),mutableMapOf("value" to "", "level" to 100),mutableMapOf("value" to "", "level" to 100))
+        var arr = listOf(
+            mutableMapOf("value" to "", "level" to 100),
+            mutableMapOf("value" to "", "level" to 100),
+            mutableMapOf("value" to "", "level" to 100)
+        )
 
         fun rearangeCollection(word: String, level: Int) {
             var temp = mutableMapOf("value" to "", "level" to 100)
@@ -117,7 +150,7 @@ class MainActivity : AppCompatActivity() {
     }
 
 
-    private fun levenshtein(lhs : CharSequence, rhs : CharSequence) : Int {
+    private fun levenshtein(lhs: CharSequence, rhs: CharSequence): Int {
         val lhsLength = lhs.length
         val rhsLength = rhs.length
 
@@ -128,7 +161,7 @@ class MainActivity : AppCompatActivity() {
             newCost[0] = i
 
             for (j in 1 until lhsLength) {
-                val match = if(lhs[j - 1] == rhs[i - 1]) 0 else 1
+                val match = if (lhs[j - 1] == rhs[i - 1]) 0 else 1
 
                 val costReplace = cost[j - 1] + match
                 val costInsert = cost[j] + 1
@@ -209,16 +242,50 @@ class MainActivity : AppCompatActivity() {
 
 
     private fun initProgram() {
-        mDbWorkerThread = DbWorkerThread("dbWorkerThread")
         mDbWorkerThread.start()
         mDB = AppDatabase.getDatabase(this)
         readCSVFirstTime()
+        initEmotionSet()
         initCorrectionSet()
         initUI()
     }
 
+    private fun initEmotionSet() {
+        var fileReader: BufferedReader? = null
+        try {
+            var line: String?
+
+            fileReader = BufferedReader(InputStreamReader(resources.openRawResource(R.raw.emotions)))
+
+            // Read CSV header
+            fileReader.readLine()
+
+            // Read the file line by line starting from the second line
+            line = fileReader.readLine()
+            while (line != null) {
+                val tokens = line.split(",")
+                Log.i("EMOTION_WORD", tokens.toString())
+                if (tokens.isNotEmpty()) {
+                    hashmap[tokens[0]] = tokens[1].toFloat()
+                }
+                line = fileReader.readLine()
+            }
+
+        } catch (e: Exception) {
+            Log.e("File error", "Reading CSV Error!")
+            e.printStackTrace()
+        } finally {
+            try {
+                fileReader?.close()
+            } catch (e: IOException) {
+                Log.e("File error", "Closing fileReader Error!")
+                e.printStackTrace()
+            }
+        }
+    }
+
     private fun initCorrectionSet() {
-        val task = Runnable { correctWords?.addAll(mDB?.dataDao()?.getMVP()?.map{ v -> v.word1 }.orEmpty()) }
+        val task = Runnable { correctWords?.addAll(mDB?.dataDao()?.getMVP()?.map { v -> v.word1 }.orEmpty()) }
         mDbWorkerThread.postTask(task)
     }
 

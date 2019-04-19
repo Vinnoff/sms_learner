@@ -12,11 +12,21 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content" />
 
-    <TextView
-        android:id="@+id/correction"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:textAlignment="center"
-        android:layout_height="80dp" />
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="sentiment éprouvé :" />
+
+        <TextView
+            android:id="@+id/emotion_tv"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAlignment="center" />
+    </LinearLayout>
 
     <Button
         android:id="@+id/word_1"
