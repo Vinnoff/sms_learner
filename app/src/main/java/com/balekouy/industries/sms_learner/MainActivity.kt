@@ -25,7 +25,7 @@ class MainActivity : AppCompatActivity() {
         }
 
     private var correctWords = ArrayList<String>()
-    private lateinit var context: String
+    private var context: String = PROPOSITION
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,6 +65,10 @@ class MainActivity : AppCompatActivity() {
                 val beforeLastWord: String? = words.getOrNull(words.size - 2)
                 context = PROPOSITION
                 hints = getTopHint(beforeLastWord?.toLowerCase(), lastWord.toLowerCase())
+                if (hints[0] == "")
+                    hints = getTopHint(lastWord.toLowerCase())
+                if (hints[0] == "")
+                    hints = getTopHint()
             } else {
                 val word = text.substring(0, text.lastIndex+1).split(" ").last()
                 val task = Runnable {
@@ -224,51 +228,23 @@ class MainActivity : AppCompatActivity() {
 
     private fun readCSVFirstTime() {
         //read0(resources.openRawResource(R.raw.gram0))
-        //read2(resources.openRawResource(R.raw.gram1))
+        //read1(resources.openRawResource(R.raw.gram1))
         //read2(resources.openRawResource(R.raw.gram2))
     }
 
-    fun read0(resourceFile: InputStream) {
-        var fileReader: BufferedReader? = null
-        try {
-            var line: String?
-
-            fileReader = BufferedReader(InputStreamReader(resourceFile))
-
-            // Read CSV header
-            fileReader.readLine()
-
-            // Read the file line by line starting from the second line
-            line = fileReader.readLine()
-            while (line != null) {
-                val tokens = line.split(";")
-                Log.i("ElTAg2", tokens.toString())
-                if (tokens.isNotEmpty()) {
-                    val data = DataZero(
-                        null,
-                        tokens[0],
-                        Integer.parseInt(tokens[1])
-                    )
-                    val task = Runnable { mDB?.dataDao()?.insert(data) }
-                    mDbWorkerThread.postTask(task)
-                }
-                line = fileReader.readLine()
-            }
-
-        } catch (e: Exception) {
-            Log.e("File error", "Reading CSV Error!")
-            e.printStackTrace()
-        } finally {
-            try {
-                fileReader?.close()
-            } catch (e: IOException) {
-                Log.e("File error", "Closing fileReader Error!")
-                e.printStackTrace()
-            }
-        }
+    private fun read0(resourceFile: InputStream) {
+        generateDaraFromCsv(resourceFile, 0)
     }
 
-    fun read2(resourceFile: InputStream) {
+    private fun read1(resourceFile: InputStream) {
+        generateDaraFromCsv(resourceFile, 1)
+    }
+
+    private fun read2(resourceFile: InputStream) {
+        generateDaraFromCsv(resourceFile, 2)
+    }
+
+    private fun generateDaraFromCsv(resourceFile: InputStream, gram:Int){
         var fileReader: BufferedReader? = null
         try {
             var line: String?
@@ -283,16 +259,11 @@ class MainActivity : AppCompatActivity() {
             while (line != null) {
                 val tokens = line.split(";")
                 if (tokens.isNotEmpty()) {
-                    val data = Data(
-                        null,
-                        tokens[0],
-                        tokens[1],
-                        tokens[2],
-                        Integer.parseInt(tokens[3]),
-                        Integer.parseInt(tokens[4])
-                    )
-                    val task = Runnable { mDB?.dataDao()?.insert(data) }
-                    mDbWorkerThread.postTask(task)
+                    when (gram){
+                        0 -> mDbWorkerThread.postTask(Runnable { mDB?.dataDao()?.insert(DataZero(null, tokens[0], Integer.parseInt(tokens[1])))})
+                        1 -> mDbWorkerThread.postTask(Runnable { mDB?.dataDao()?.insert(DataUn(null, tokens[0], tokens[1], Integer.parseInt(tokens[2])))})
+                        else -> mDbWorkerThread.postTask(Runnable { mDB?.dataDao()?.insert(Data(null, tokens[0], tokens[1], tokens[2], Integer.parseInt(tokens[3]), Integer.parseInt(tokens[4])))})
+                    }
                 }
                 line = fileReader.readLine()
             }
