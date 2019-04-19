@@ -6,6 +6,7 @@ import android.support.v7.app.AppCompatActivity
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
+import android.widget.Button
 import kotlinx.android.synthetic.main.activity_main.*
 import java.io.BufferedReader
 import java.io.IOException
@@ -24,11 +25,7 @@ class MainActivity : AppCompatActivity() {
         }
 
     private var correctWords = ArrayList<String>()
-    private var correctWord = listOf("", "", "")
-            set(value) {
-                field = value
-                setButtons()
-            }
+    private lateinit var context: String
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,13 +63,25 @@ class MainActivity : AppCompatActivity() {
                 val words = text.substring(0, text.lastIndex).split(" ")
                 val lastWord = words.last()
                 val beforeLastWord: String? = words.getOrNull(words.size - 2)
+                context = PROPOSITION
                 hints = getTopHint(beforeLastWord?.toLowerCase(), lastWord.toLowerCase())
             } else {
                 val word = text.substring(0, text.lastIndex+1).split(" ").last()
-                val task = Runnable {val worddb=mDB?.dataDao()?.getWord("$word%");hints=if(!worddb.isNullOrEmpty()){worddb.map{v->v.word1}}else{getNearestWord(word)};}
+                val task = Runnable {
+                    val worddb=mDB?.dataDao()?.getWord("$word%")
+                    hints=
+                        if(!worddb.isNullOrEmpty()) {
+                            context = COMPLETION
+                            worddb.map{v->v.word1}
+                        } else{
+                            context = CORRECTION
+                            getNearestWord(word)
+                        }
+                }
                 mDbWorkerThread.postTask(task)
             }
         } else {
+            context = PROPOSITION
             hints = getTopHint(lastWord = ".")
         }
     }
@@ -82,7 +91,6 @@ class MainActivity : AppCompatActivity() {
 
         fun rearangeCollection(word: String, level: Int) {
             var temp = mutableMapOf("value" to "", "level" to 100)
-
 
             arr.forEach {
                 if (temp["level"] == 100) {
@@ -167,24 +175,34 @@ class MainActivity : AppCompatActivity() {
         word_3.text = if (hints.size > 2) hints[2] else ""
     }
 
-    fun clickedOnWord1() {
-        if (word_1.text.isNotEmpty()) {
-            val newText = "${user_input.text}${word_1.text} "
-            user_input.setText(newText)
-        }
-
+    private fun clickedOnWord1() {
+        updateText(word_1)
     }
 
-    fun clickedOnWord2() {
-        if (word_2.text.isNotEmpty()) {
-            val newText = "${user_input.text}${word_2.text} "
-            user_input.setText(newText)
-        }
+    private fun clickedOnWord2() {
+        updateText(word_2)
     }
 
-    fun clickedOnWord3() {
-        if (word_3.text.isNotEmpty()) {
-            val newText = "${user_input.text}${word_3.text} "
+    private fun clickedOnWord3() {
+        updateText(word_3)
+    }
+
+    private fun updateText(but: Button) {
+        if (but.text.isNotEmpty()) {
+            val newText:String
+            Log.i("TABC", context)
+            newText =
+                if (context == PROPOSITION)
+                    "${user_input.text}${but.text} "
+                else {
+                    var sent = user_input.text.split(" ")
+                    Log.i("TAB1",sent.toString())
+                    sent = sent.dropLast(1)
+                    Log.i("TAB2",sent.toString())
+                    "${sent.joinToString(separator = " ")}${if (sent.isNotEmpty()) " " else ""}${but.text} "
+                }
+            Log.i("TAB",newText)
+
             user_input.setText(newText)
         }
     }
@@ -290,6 +308,12 @@ class MainActivity : AppCompatActivity() {
                 e.printStackTrace()
             }
         }
+    }
+
+    companion object {
+        const val CORRECTION = "ERASE"
+        const val COMPLETION = "ERASE"
+        const val PROPOSITION = "CONCAT"
     }
 }
 
